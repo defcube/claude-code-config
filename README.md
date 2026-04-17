@@ -1,53 +1,74 @@
 # claude-code-config
 
-My shared [Claude Code](https://claude.com/claude-code) configuration — statusline, global instructions, keybindings, and custom skills. Cherry-pick whatever's useful.
+Custom statusline for [Claude Code](https://claude.com/claude-code).
 
-## What's here
+Shows:
 
-| Path | What it is |
-|---|---|
-| `CLAUDE.md` | Global instructions injected into every session |
-| `keybindings.json` | Custom keybindings (drop into `~/.claude/`) |
-| `settings.example.json` | Template for `~/.claude/settings.json` — fill in your paths |
-| `statusline/` | Custom statusline showing dir, git, model, context %, cost |
-| `skills/` | Custom slash-command skills |
+- Current directory (shortened to last 3 segments)
+- Git branch, staged / modified / untracked counts, ahead/behind upstream
+- Active model (e.g. `Opus 4.7`, `Sonnet 4.6`)
+- Context window remaining (yellow <30%, red <15%)
+- Session cost + accumulating response-delta cost
 
-## Install everything
+Example:
 
-```bash
-git clone https://github.com/YOUR_USERNAME/claude-code-config.git ~/claude-code-config
-cd ~/claude-code-config
-
-# Global CLAUDE.md and keybindings
-cp CLAUDE.md ~/.claude/CLAUDE.md
-cp keybindings.json ~/.claude/keybindings.json
-
-# Statusline
-cp statusline/statusline-command.sh ~/.claude/statusline-command.sh
-chmod +x ~/.claude/statusline-command.sh
-
-# Skills
-mkdir -p ~/.claude/skills
-cp -R skills/* ~/.claude/skills/
-
-# Settings — start from the example, then edit paths
-cp settings.example.json ~/.claude/settings.json
-# edit ~/.claude/settings.json and replace YOUR_USERNAME
+```
+.../programs/myproject [main] [+2*5?1] [↑3] | Opus 4.7 | ctx: 42% | $1.23 (+$0.18)
 ```
 
-Restart Claude Code after changes.
+## Install
 
-## Cherry-picking
+1. **Copy the script** somewhere permanent:
 
-Each piece is independent — take just the statusline, or just a skill, etc. See the per-directory READMEs where present.
+   ```bash
+   curl -o ~/.claude/statusline-command.sh https://raw.githubusercontent.com/defcube/claude-code-config/main/statusline-command.sh
+   chmod +x ~/.claude/statusline-command.sh
+   ```
 
-## Skills included
+2. **Point Claude Code at it** — add this to `~/.claude/settings.json`:
 
-- **`bubbletea-tui`** — guidance for building Go terminal UIs with Bubble Tea + lipgloss
-- **`detach-dir`** — detaches HEAD at `origin/main` so you can't accidentally commit to main
-- **`edit-file`** — opens a file in your macOS default editor via `open`
-- **`revise-skills`** — reviews the current conversation for friction and proposes improvements to local skills / CLAUDE.md
+   ```json
+   {
+     "statusLine": {
+       "type": "command",
+       "command": "/Users/YOUR_USERNAME/.claude/statusline-command.sh"
+     }
+   }
+   ```
+
+   Use the absolute path — `~` is not expanded in this field.
+
+3. **Restart Claude Code** (or start a new session).
+
+## Dependencies
+
+Standard Unix tools, pre-installed on macOS and most Linux distros:
+
+- `bash`
+- `jq`
+- `awk`
+- `git`
+
+## How the cost delta works
+
+The `(+$X.XX)` shows cost accumulated during the current response. It resets when the statusline hasn't been called for >3 seconds (Claude Code refreshes it frequently while streaming, then pauses between turns).
+
+State lives in `/tmp/claude-statusline/<session_id>.state` — auto-created, nothing to configure.
+
+## Customizing
+
+The script is ~120 lines of bash. Common tweaks:
+
+- **Colors** — ANSI escapes like `\033[1;35m` (bold magenta). Reference: [ANSI SGR parameters](https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters).
+- **Path depth** — edit the `awk` in `dir_display` (currently shows last 3 segments).
+- **Sections** — each block appends to `$line`; comment one out to drop it.
+
+## Troubleshooting
+
+- **Statusline doesn't show** — run `claude --debug` and look for command errors. Most common causes: wrong path in `settings.json`, missing `chmod +x`.
+- **Garbled characters** — your terminal may not render the `↑↓` arrows (non-UTF-8 locale) or ANSI colors. Replace with ASCII if needed.
+- **`jq: command not found`** — `brew install jq` on macOS, `apt install jq` on Debian/Ubuntu.
 
 ## License
 
-MIT — do whatever you want with this.
+MIT
